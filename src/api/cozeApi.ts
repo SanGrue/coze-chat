@@ -131,22 +131,33 @@ export class CozeApi {
    */
   public static async getBotConfig(botId: string = botConfig.bot_id): Promise<any> {
     const url = `${cozeConfig.baseURL}${CozeApi.BOT_CONFIG_ENDPOINT}/${botId}`
+    const token = cozeConfig.accessToken
+    
+    console.log('--- 发起 getBotConfig 请求 ---')
+    console.log('🔗 URL:', url)
+    console.log('🔑 Token 片段:', token ? token.substring(0, 10) + '...' : '未设置')
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${cozeConfig.accessToken}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     })
 
     if (!response.ok) {
-      throw new Error(`获取智能体配置失败: ${response.status} ${response.statusText}`)
+      const errText = await response.text()
+      console.error('❌ Request Failed - Status:', response.status, response.statusText)
+      console.error('❌ Body Detail:', errText)
+      throw new Error(`获取智能体配置失败: HTTP Error ${response.status} - ${errText}`)
     }
 
     const result = await response.json()
+    console.log('✅ Response 解析成功:', result)
+    
     if (result.code !== 0) {
-      throw new Error(`获取智能体配置失败: ${result.msg}`)
+      console.error('❌ Coze 业务错误码:', result)
+      throw new Error(`获取智能体配置失败: [${result.code}] ${result.msg}`)
     }
 
     return result
