@@ -8,7 +8,9 @@ const botName = ref(botConfig.botName)
 const buttons = ref(actionButtons)
 
 // 对话状态管理
-const chatResult = ref('摄像头准备就绪\n等待您的指令...')
+const systemStatus = ref('摄像头准备就绪\n等待您的指令...')
+const chatReasoning = ref('')
+const chatAnswer = ref('')
 const isProcessing = ref(false)
 const conversationId = ref<string | null>(null)
 const mainScrollRef = ref<HTMLElement | null>(null)
@@ -85,7 +87,9 @@ const handleButtonClick = async (payload: string) => {
   if (isProcessing.value) return
   isProcessing.value = true
   
-  chatResult.value = `📸 正在捕获试卷画面...\n指令: ${payload}`
+  systemStatus.value = `📸 正在捕获试卷画面...\n指令: ${payload}`
+  chatReasoning.value = ''
+  chatAnswer.value = ''
 
   try {
     // 第一步：截取画面并打包成 File
@@ -93,55 +97,58 @@ const handleButtonClick = async (payload: string) => {
     if (!file) throw new Error('截图失败，请确保摄像头画面正常展示中')
     
     // 第二步：上传文件至 Coze 获取资源 ID
-    chatResult.value += '\n☁️ 上传试卷图片至 Coze 服务器中...'
+    systemStatus.value += '\n☁️ 上传图片至 Coze 服务器中...'
     scrollToBottom()
     const uploadRes = await CozeApi.uploadFile(file)
     const fileId = uploadRes.id
     
     // 第三步：向智能体发送多模态消息（图片对象 + 文本提示词）
-    chatResult.value += '\n🤖 文件上传成功！开始等待智能体推理并回复...'
+    systemStatus.value += '\n🤖 上传成功！等待智能体大脑启动...'
     scrollToBottom()
     
     const contentArray = [
       { type: "text", text: payload },
       { type: "image", file_id: fileId }
     ]
-    // 强制按数组结构的字符串发送给大模型
     const contentString = JSON.stringify(contentArray)
 
-    // 调用 sendObjectStringMessage 并在参数附加上文会话 ID（如果存在）
     const response = await CozeApi.sendObjectStringMessage(
       { content: contentString, stream: true }, 
       conversationId.value
     )
 
-    // 清空占位提示，准备流式打字机接听数据
-    chatResult.value = ''
+    // 清空系统提示状态，只保留推理和答案显示
+    systemStatus.value = ''
 
     // 第四步：解流 (Server-Sent Events) 并展示增量结果
     await CozeApi.handleStreamResponse(response, (event) => {
-      
-      // 捕获新对话或者已建立的 conversation_id 并保存，作为本次和下次继续关联记忆的凭证
+      // 捕获新对话或者已建立的 conversation_id 并保存
       if (event.event_type === 'conversation.chat.created' && event.data?.conversation_id) {
         conversationId.value = event.data.conversation_id
       }
       
-      // 提取流式输出的新文本段落并累加
+      // 提取“思考流”文本段落并累加
+      if (event.event_type === 'conversation.message.delta' && event.data?.reasoning_content) {
+        chatReasoning.value += event.data.reasoning_content
+        scrollToBottom()
+      }
+      
+      // 提取正文的新文本段落并累加
       if (event.event_type === 'conversation.message.delta' && event.data?.content) {
-        chatResult.value += event.data.content
+        chatAnswer.value += event.data.content
         scrollToBottom()
       }
       
       // 如果出现中止或错误提前响应错误
       if (event.event_type === 'conversation.chat.failed') {
-        chatResult.value += '\n\n[回答过程发生内部失败或网络阻断]'
+        systemStatus.value = '[回答过程发生内部失败或网络阻断]'
         scrollToBottom()
       }
     })
 
   } catch (error: any) {
     console.error('业务流程发生异常:', error)
-    chatResult.value += `\n\n❌ [发生错误]: ${error.message || '网络连接或发生未知错误'}`
+    systemStatus.value = `❌ [发生错误]: ${error.message || '网络连接或发生未知错误'}`
     scrollToBottom()
   } finally {
     isProcessing.value = false
@@ -168,7 +175,17 @@ const handleButtonClick = async (payload: string) => {
       <!-- 内容区：增加 ref 挂载以控制它的滚动条 -->
       <main class="chat-main" ref="mainScrollRef">
         <div class="result-box">
-          <p>{{ chatResult }}</p>
+          <!-- 步骤状态占位文本 -->
+          <p class="system-status" v-if="systemStatus">{{ systemStatus }}</p>
+          
+          <!-- 思考过程块 -->
+          <div class="reasoning-block" v-if="chatReasoning">
+            <span class="reasoning-label">🧠 思考过程</span>
+            <p class="reasoning-text">{{ chatReasoning }}</p>
+          </div>
+          
+          <!-- 正式回答块 -->
+          <p class="answer-text" v-if="chatAnswer">{{ chatAnswer }}</p>
         </div>
       </main>
 
@@ -269,8 +286,6 @@ const handleButtonClick = async (payload: string) => {
   border: 1px solid rgba(255, 255, 255, 0.15);
   padding: 20px 24px;
   border-radius: 16px;
-  color: #fff;
-  font-size: 1.05rem;
   text-align: left;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -278,6 +293,43 @@ const handleButtonClick = async (payload: string) => {
   width: 100%;
   max-height: 100%;
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.system-status {
+  color: #ccc;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.reasoning-block {
+  border-left: 3px solid rgba(16, 185, 129, 0.5);
+  padding-left: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.reasoning-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #10b981;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.reasoning-text {
+  color: #a0aec0;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.answer-text {
+  color: #fff;
+  font-size: 1.05rem;
+  margin: 0;
 }
 
 .chat-footer {
