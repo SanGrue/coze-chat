@@ -17,7 +17,7 @@ const startCamera = async () => {
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: 'user', // 使用前置摄像头
+        facingMode: 'environment', // 默认调用手机后置摄像头
         width: { ideal: 1920 },
         height: { ideal: 1080 }
       }
@@ -108,7 +108,7 @@ const handleButtonClick = (payload: string) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1); /* 前置镜像 */
+  /* transform: scaleX(-1); 删除这里以取消镜像，因为后置摄像头不需要镜像 */
   z-index: 0;
 }
 
