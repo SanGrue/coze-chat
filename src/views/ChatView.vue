@@ -271,7 +271,6 @@ const handleButtonClick = async (payload: string) => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   align-items: center;
   padding: 20px;
   overflow-y: auto;
@@ -291,7 +290,8 @@ const handleButtonClick = async (payload: string) => {
   white-space: pre-wrap;
   word-wrap: break-word;
   width: 100%;
-  max-height: 100%;
+  margin-top: auto; /* 靠底部对齐，当高度撑满时回归顶部流式，绝不遮挡 */
+  flex-shrink: 0; /* 防止弹性容器强行挤压变形 */
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   display: flex;
   flex-direction: column;
