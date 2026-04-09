@@ -284,7 +284,8 @@ const handleButtonClick = async (payload: string) => {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 20px 24px;
+  padding: 20px 24px 28px 24px; /* 增加底部防挤压内边距 */
+  margin-bottom: 12px; /* 增加距底层功能按键的外边距 */
   border-radius: 16px;
   text-align: left;
   line-height: 1.6;
